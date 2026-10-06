@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Montserrat", sans-serif;
+  --font-sans: "Inter", sans-serif;
+
+  /* Colors */
+  --color-primary-50: #fdf8ed;
+  --color-primary-100: #f9eed0;
+  --color-primary-200: #f3dda4;
+  --color-primary-300: #ecc771;
+  --color-primary-400: #e5af41;
+  --color-primary-500: #df9824; /* Main Gold/Amber */
+  --color-primary-600: #c2781a;
+  --color-primary-700: #a15a18;
+  --color-primary-800: #834719;
+  --color-primary-900: #6b3a17;
+
+  --color-surface-50: #fafafa;
+  --color-surface-100: #f4f4f5;
+  --color-surface-200: #e4e4e7;
+  --color-surface-300: #d4d4d8;
+  --color-surface-400: #a1a1aa;
+  --color-surface-500: #71717a;
+  --color-surface-600: #52525b;
+  --color-surface-700: #3f3f46;
+  --color-surface-800: #27272a;
+  --color-surface-900: #18181b; /* Main background */
+  --color-surface-950: #09090b;
+
+  --color-dark-bg: var(--color-surface-950);
+  --color-dark-card: var(--color-surface-900);
+  --color-dark-border: var(--color-surface-800);
+
+  /* Shadows for dark theme */
+  --shadow-gold: 0 4px 14px 0 rgba(223, 152, 36, 0.39);
+  --shadow-subtle: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+}
+
+@layer base {
+  :root {
+    background-color: var(--color-dark-bg);
+    color: var(--color-surface-100);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    font-weight: 700;
+  }
+}
