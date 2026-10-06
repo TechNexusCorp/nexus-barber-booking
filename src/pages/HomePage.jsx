@@ -5,7 +5,7 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Clock, Scissors, MapPin, Phone, Star, MessageCircle } from 'lucide-react';
-import { services, barbers, gallery, testimonials, contactInfo } from '../data/mockData';
+import { services, barbers, gallery, contactInfo } from '../data/mockData';
 import { useFadeIn } from '../hooks/useFadeIn';
 
 // Animated wrapper component
@@ -21,14 +21,14 @@ const FadeInSection = ({ children, className = '' }) => {
   );
 };
 
-function HomePage({ onNavigate }) {
+function HomePage({ onNavigate, user }) {
   // Override mock data for the generated image
   const displayBarbers = [...barbers];
   displayBarbers[0] = { ...displayBarbers[0], photo: '/barber-1.jpg' };
 
   return (
     <div className="min-h-screen flex flex-col font-sans bg-dark-bg text-surface-100 scroll-smooth">
-      <Header />
+      <Header onNavigate={onNavigate} user={user} />
       
       <main className="flex-1">
         {/* 1. Hero Section */}
@@ -117,27 +117,6 @@ function HomePage({ onNavigate }) {
           </FadeInSection>
         </Section>
 
-        {/* 5. Depoimentos */}
-        <Section title="O que dizem sobre nós" subtitle="Avaliações" className="bg-surface-950">
-          <FadeInSection className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {testimonials.map((testi) => (
-              <Card key={testi.id} className="flex flex-col items-center text-center">
-                <div className="flex gap-1 text-primary-500 mb-4">
-                  {[...Array(testi.rating)].map((_, i) => (
-                    <Star key={i} size={16} fill="currentColor" />
-                  ))}
-                </div>
-                <p className="text-surface-300 italic mb-6">"{testi.text}"</p>
-                <div className="mt-auto">
-                  <div className="w-10 h-10 bg-surface-800 rounded-full flex items-center justify-center mx-auto mb-2 text-surface-200 font-display font-bold">
-                    {testi.name.charAt(0)}
-                  </div>
-                  <h4 className="text-sm font-semibold text-surface-100">{testi.name}</h4>
-                </div>
-              </Card>
-            ))}
-          </FadeInSection>
-        </Section>
 
         {/* 6. Localização */}
         <Section id="contato">

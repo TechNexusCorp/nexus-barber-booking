@@ -51,27 +51,6 @@ export const gallery = [
   'https://images.unsplash.com/photo-1621605815971-fbc98d665033?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'
 ];
 
-export const testimonials = [
-  {
-    id: 1,
-    name: 'Lucas Almeida',
-    text: 'Atendimento nota 10. O Marcos é fera no degradê, recomendo demais!',
-    rating: 5
-  },
-  {
-    id: 2,
-    name: 'Rafael Costa',
-    text: 'Ambiente sensacional. A barba com toalha quente é uma experiência à parte.',
-    rating: 5
-  },
-  {
-    id: 3,
-    name: 'Pedro Henrique',
-    text: 'Preço justo e qualidade excelente. Já virei cliente fixo.',
-    rating: 5
-  }
-];
-
 export const contactInfo = {
   address: 'Rua das Tesouras, 123 - Centro, São Paulo - SP',
   phone: '(11) 99999-9999',

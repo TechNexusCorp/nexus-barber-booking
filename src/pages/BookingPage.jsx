@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Check, Calendar as CalendarIcon, Clock, Scissors, User, MapPin } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { services, barbers, contactInfo } from '../data/mockData';
+import { supabase } from '../lib/supabase';
 
 const STEPS = [
   { id: 1, title: 'Serviço' },
@@ -17,17 +18,34 @@ const STEPS = [
 // Mock available times
 const availableTimes = ['09:00', '10:00', '11:00', '14:00', '15:30', '17:00', '18:30'];
 
-export default function BookingPage({ onNavigate }) {
+export default function BookingPage({ onNavigate, user }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [booking, setBooking] = useState({
     serviceIds: [],
     barberId: null, // 'any' for no preference
     date: '',
     time: '',
-    customer: { name: '', phone: '', notes: '' }
+    customer: { 
+      name: user?.user_metadata?.full_name || '', 
+      phone: user?.user_metadata?.phone || '', 
+      notes: '' 
+    }
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (user?.user_metadata) {
+      setBooking(prev => ({
+        ...prev,
+        customer: {
+          ...prev.customer,
+          name: prev.customer.name || user.user_metadata.full_name || '',
+          phone: prev.customer.phone || user.user_metadata.phone || '',
+        }
+      }));
+    }
+  }, [user]);
 
   const handleNext = () => {
     // Validation
@@ -54,12 +72,41 @@ export default function BookingPage({ onNavigate }) {
     }
 
     if (currentStep === 5) {
-      // Simulate API Call
+      if (!user) {
+        alert("Você precisa estar logado para agendar um horário.");
+        onNavigate('login');
+        return;
+      }
+      
       setIsLoading(true);
-      setTimeout(() => {
-        setIsLoading(false);
-        setCurrentStep(6);
-      }, 1500);
+      
+      const insertAppointment = async () => {
+        try {
+          const { error } = await supabase.from('appointments').insert([
+            {
+              user_id: user.id,
+              customer_name: booking.customer.name,
+              customer_phone: booking.customer.phone,
+              barber_id: booking.barberId,
+              service_ids: booking.serviceIds,
+              date: booking.date,
+              time: booking.time,
+              status: 'upcoming',
+              total_price: totalPrice,
+              notes: booking.customer.notes || null,
+            }
+          ]);
+          if (error) throw error;
+          setCurrentStep(6);
+        } catch (error) {
+          console.error("Erro ao salvar agendamento:", error);
+          alert("Ocorreu um erro ao salvar seu agendamento. Tente novamente.");
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      insertAppointment();
       return;
     }
 
