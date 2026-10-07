@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from '../components/layout/Header';
 import { Card } from '../components/ui/Card';
-import { Calendar, Clock, Scissors, MapPin, CheckCircle, Clock3, User as UserIcon, Phone } from 'lucide-react';
+import { Button } from '../components/ui/Button';
+import { Calendar, Clock, Scissors, MapPin, CheckCircle, Clock3, User as UserIcon, Phone, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { services, barbers } from '../data/mockData';
+import { barbers } from '../data/mockData';
+import { useServices } from '../hooks/useServices';
+import { addMinutes } from '../lib/schedule';
 
 export default function AppointmentsPage({ onNavigate, user }) {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [cancelModalId, setCancelModalId] = useState(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const { services } = useServices({ includeInactive: true });
 
   // Verifica se é admin pelo metadata
   const isAdmin = user?.user_metadata?.is_admin === true;
@@ -48,13 +54,54 @@ export default function AppointmentsPage({ onNavigate, user }) {
   const upcoming = appointments.filter(a => a.status === 'upcoming');
   const past = appointments.filter(a => a.status === 'completed' || a.status === 'cancelled');
 
+  const handleCancelAppointment = (id) => {
+    setCancelModalId(id);
+  };
+
+  const confirmCancel = async () => {
+    if (!cancelModalId) return;
+    setIsCancelling(true);
+    
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .update({ status: 'cancelled' })
+        .eq('id', cancelModalId)
+        .select();
+        
+      if (error) throw error;
+      
+      // Se não retornou dados, significa que a atualização foi bloqueada silenciosamente pelo RLS do Supabase
+      if (!data || data.length === 0) {
+        throw new Error("Ação bloqueada pelo banco de dados. Você não tem permissão para cancelar este agendamento (RLS).");
+      }
+      
+      setAppointments(prev => prev.map(app => 
+        app.id === cancelModalId ? { ...app, status: 'cancelled' } : app
+      ));
+      setCancelModalId(null);
+    } catch (err) {
+      console.error("Erro ao cancelar agendamento:", err);
+      alert("Ocorreu um erro ao cancelar. Tente novamente.");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   const getServiceNames = (ids) => {
-    return ids.map(id => services.find(s => s.id === id)?.name || id).join(', ');
+    return (ids || []).map(id => services.find(s => String(s.id) === String(id))?.name || id).join(', ');
+  };
+
+  const getTimeRange = (appointment) => {
+    const start = String(appointment.time).slice(0, 5);
+    const duration = appointment.duration_minutes ||
+      (appointment.service_ids || []).reduce((acc, id) => acc + (services.find(s => String(s.id) === String(id))?.duration_minutes || 0), 0);
+    return duration ? `${start} – ${addMinutes(start, duration)}` : start;
   };
 
   const getBarberName = (id) => {
     if (id === 'any') return 'Sem preferência';
-    return barbers.find(b => b.id === id)?.name || id;
+    return barbers.find(b => String(b.id) === String(id))?.name || id;
   };
 
   const AppointmentCard = ({ appointment }) => {
@@ -92,9 +139,19 @@ export default function AppointmentsPage({ onNavigate, user }) {
             <Calendar size={16} className="text-primary-500" />
             <span className="text-sm">{appointment.date.split('-').reverse().join('/')}</span>
           </div>
-          <div className="flex items-center gap-2 text-surface-200">
-            <Clock size={16} className="text-primary-500" />
-            <span className="text-sm">{appointment.time}</span>
+          <div className="flex items-center justify-between text-surface-200">
+            <div className="flex items-center gap-2">
+              <Clock size={16} className="text-primary-500" />
+              <span className="text-sm">{getTimeRange(appointment)}</span>
+            </div>
+            {isUpcoming && (
+              <button 
+                onClick={() => handleCancelAppointment(appointment.id)}
+                className="text-xs text-red-400 hover:text-red-300 font-semibold transition-colors px-2 py-1 border border-red-400/20 rounded hover:bg-red-400/10"
+              >
+                Cancelar
+              </button>
+            )}
           </div>
         </div>
       </Card>
@@ -157,6 +214,39 @@ export default function AppointmentsPage({ onNavigate, user }) {
           </>
         )}
       </main>
+
+      {/* Custom Cancel Modal */}
+      {cancelModalId && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-dark-card border border-surface-800 rounded-2xl shadow-2xl p-6 w-full max-w-sm text-center">
+            <div className="w-16 h-16 bg-red-950/30 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-900/50">
+              <X size={32} />
+            </div>
+            <h3 className="text-xl font-bold text-surface-50 mb-2">Cancelar Agendamento?</h3>
+            <p className="text-surface-300 mb-6 text-sm">
+              Tem certeza que deseja cancelar este agendamento? Essa ação não pode ser desfeita.
+            </p>
+            <div className="flex gap-3">
+              <Button 
+                variant="outline" 
+                className="flex-1"
+                onClick={() => setCancelModalId(null)}
+                disabled={isCancelling}
+              >
+                Voltar
+              </Button>
+              <Button 
+                variant="primary" 
+                className="flex-1 bg-red-500 hover:bg-red-600 border-red-500 hover:border-red-600 text-white"
+                onClick={confirmCancel}
+                disabled={isCancelling}
+              >
+                {isCancelling ? 'Cancelando...' : 'Sim, Cancelar'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

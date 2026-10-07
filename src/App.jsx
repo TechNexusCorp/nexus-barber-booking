@@ -3,6 +3,7 @@ import HomePage from './pages/HomePage';
 import BookingPage from './pages/BookingPage';
 import LoginPage from './pages/LoginPage';
 import AppointmentsPage from './pages/AppointmentsPage';
+import AdminSettingsPage from './pages/AdminSettingsPage';
 import { supabase } from './lib/supabase';
 
 function App() {
@@ -29,6 +30,7 @@ function App() {
       {currentPage === 'home' && <HomePage onNavigate={setCurrentPage} user={user} />}
       {currentPage === 'booking' && <BookingPage onNavigate={setCurrentPage} user={user} />}
       {currentPage === 'appointments' && <AppointmentsPage onNavigate={setCurrentPage} user={user} />}
+      {currentPage === 'settings' && <AdminSettingsPage onNavigate={setCurrentPage} user={user} />}
       {currentPage === 'login' && <LoginPage onNavigate={setCurrentPage} />}
     </>
   );

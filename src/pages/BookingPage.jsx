@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Check, Calendar as CalendarIcon, Clock, Scissors, User, MapPin } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { ChevronLeft, ChevronDown, Check, Calendar as CalendarIcon, Clock, Scissors, User, MapPin, Sun, Sunset } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
-import { services, barbers, contactInfo } from '../data/mockData';
+import { barbers, contactInfo } from '../data/mockData';
 import { supabase } from '../lib/supabase';
+import { useServices, formatPrice, formatDuration } from '../hooks/useServices';
+import { SHIFTS, generateShiftSlots, isBarberFree, findFreeBarber, addMinutes } from '../lib/schedule';
 
 const STEPS = [
   { id: 1, title: 'Serviço' },
@@ -15,8 +17,6 @@ const STEPS = [
   { id: 5, title: 'Confirmação' },
 ];
 
-// Mock available times
-const availableTimes = ['09:00', '10:00', '11:00', '14:00', '15:30', '17:00', '18:30'];
 
 export default function BookingPage({ onNavigate, user }) {
   const [currentStep, setCurrentStep] = useState(1);
@@ -33,6 +33,32 @@ export default function BookingPage({ onNavigate, user }) {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [busySlots, setBusySlots] = useState([]);
+  const [isLoadingTimes, setIsLoadingTimes] = useState(false);
+  const [openShift, setOpenShift] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const { services } = useServices();
+
+  useEffect(() => {
+    if (currentStep === 3 && booking.date && booking.barberId) {
+      const fetchBusySlots = async () => {
+        setIsLoadingTimes(true);
+        try {
+          // RPC segura: devolve só barbeiro/início/duração de TODOS os agendamentos do dia
+          const { data, error } = await supabase.rpc('get_busy_slots', { p_date: booking.date });
+          if (error) throw error;
+          setBusySlots(data || []);
+        } catch (error) {
+          console.error("Erro ao buscar horários ocupados:", error);
+          setBusySlots([]);
+        } finally {
+          setIsLoadingTimes(false);
+        }
+      };
+
+      fetchBusySlots();
+    }
+  }, [currentStep, booking.date, booking.barberId, reloadKey]);
 
   useEffect(() => {
     if (user?.user_metadata) {
@@ -78,8 +104,21 @@ export default function BookingPage({ onNavigate, user }) {
         return;
       }
       
+      // "Sem preferência": atribui automaticamente um barbeiro livre no intervalo inteiro
+      let assignedBarberId = booking.barberId;
+      if (assignedBarberId === 'any') {
+        const freeBarber = findFreeBarber(barbers, booking.time, totalDuration, busySlots);
+        if (!freeBarber) {
+          alert("Esse horário acabou de ser ocupado. Por favor, escolha outro.");
+          setBooking(prev => ({ ...prev, time: '' }));
+          setReloadKey(k => k + 1);
+          setCurrentStep(3);
+          return;
+        }
+        assignedBarberId = freeBarber.id;
+      }
+
       setIsLoading(true);
-      
       const insertAppointment = async () => {
         try {
           const { error } = await supabase.from('appointments').insert([
@@ -87,16 +126,32 @@ export default function BookingPage({ onNavigate, user }) {
               user_id: user.id,
               customer_name: booking.customer.name,
               customer_phone: booking.customer.phone,
-              barber_id: booking.barberId,
+              barber_id: assignedBarberId,
               service_ids: booking.serviceIds,
               date: booking.date,
               time: booking.time,
               status: 'upcoming',
               total_price: totalPrice,
+              duration_minutes: totalDuration,
               notes: booking.customer.notes || null,
             }
           ]);
-          if (error) throw error;
+          
+          if (error) {
+            // 23505 = unique violation | 23P01 = exclusion violation (horário sobreposto)
+            if (error.code === '23505' || error.code === '23P01') {
+              alert("Oops! Alguém foi mais rápido e reservou esse horário. Por favor, escolha outro.");
+              setBooking(prev => ({ ...prev, time: '' }));
+              setReloadKey(k => k + 1);
+              setCurrentStep(3); // volta para a escolha de horário
+              return;
+            }
+            throw error;
+          }
+          
+          if (booking.barberId === 'any') {
+            setBooking(prev => ({ ...prev, assignedBarberId }));
+          }
           setCurrentStep(6);
         } catch (error) {
           console.error("Erro ao salvar agendamento:", error);
@@ -124,12 +179,33 @@ export default function BookingPage({ onNavigate, user }) {
   const toggleService = (id) => {
     setBooking(prev => {
       const isSelected = prev.serviceIds.includes(id);
-      return {
-        ...prev,
-        serviceIds: isSelected 
-          ? prev.serviceIds.filter(sId => sId !== id)
-          : [...prev.serviceIds, id]
-      };
+      let next;
+
+      if (isSelected) {
+        next = prev.serviceIds.filter(sId => sId !== id);
+      } else {
+        const clicked = services.find(s => s.id === id);
+        const parts = clicked?.combo_of || [];
+        next = prev.serviceIds.filter(sId => {
+          // Marcou um combo -> desmarca os avulsos que ele já inclui
+          if (parts.includes(sId)) return false;
+          // Marcou um avulso -> desmarca combos que já incluem ele
+          const other = services.find(s => s.id === sId);
+          if (other?.combo_of?.includes(id)) return false;
+          return true;
+        });
+        next.push(id);
+
+        // Marcou todos os avulsos de um combo -> troca automaticamente pelo combo (preço com desconto)
+        services.forEach(combo => {
+          if (combo.combo_of?.length && combo.combo_of.every(p => next.includes(p))) {
+            next = [...next.filter(p => !combo.combo_of.includes(p)), combo.id];
+          }
+        });
+      }
+
+      // Duração mudou -> o horário escolhido pode não caber mais
+      return { ...prev, serviceIds: next, time: '' };
     });
   };
 
@@ -150,10 +226,19 @@ export default function BookingPage({ onNavigate, user }) {
   };
 
   const selectedServicesList = services.filter(s => booking.serviceIds.includes(s.id));
-  const totalPrice = selectedServicesList.reduce((acc, curr) => {
-    const priceNum = parseFloat(curr.price.replace('R$ ', '').replace(',', '.'));
-    return acc + priceNum;
-  }, 0);
+  const totalPrice = selectedServicesList.reduce((acc, curr) => acc + curr.price, 0);
+  const totalDuration = selectedServicesList.reduce((acc, curr) => acc + curr.duration_minutes, 0);
+
+  // Horários por turno: um horário está livre se o intervalo inteiro [início, início + duração) não sobrepõe nada
+  const shiftSlots = useMemo(() => SHIFTS.map(shift => {
+    const slots = generateShiftSlots(shift, totalDuration || 5).map(time => {
+      const free = booking.barberId === 'any'
+        ? !!findFreeBarber(barbers, time, totalDuration, busySlots)
+        : isBarberFree(booking.barberId, time, totalDuration, busySlots);
+      return { time, free };
+    });
+    return { shift, slots, freeCount: slots.filter(s => s.free).length };
+  }), [totalDuration, booking.barberId, busySlots]);
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -175,9 +260,12 @@ export default function BookingPage({ onNavigate, user }) {
                     <div>
                       <h3 className="text-lg font-semibold text-surface-50">{service.name}</h3>
                       <p className="text-sm text-surface-400 mt-1">{service.description}</p>
+                      <span className="inline-flex items-center gap-1 mt-2 text-xs text-surface-400 bg-surface-900 px-2 py-0.5 rounded-md border border-surface-800">
+                        <Clock size={12} /> {formatDuration(service.duration_minutes)}
+                      </span>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <span className="font-bold text-primary-500">{service.price}</span>
+                    <div className="flex flex-col items-end gap-2 shrink-0 pl-3">
+                      <span className="font-bold text-primary-500 whitespace-nowrap">{formatPrice(service.price)}</span>
                       <div className={`w-6 h-6 rounded-full border flex items-center justify-center ${isSelected ? 'bg-primary-500 border-primary-500 text-surface-950' : 'border-surface-600 text-transparent'}`}>
                         <Check size={14} />
                       </div>
@@ -259,13 +347,13 @@ export default function BookingPage({ onNavigate, user }) {
             <div>
               <h2 className="text-2xl font-display text-surface-50 mb-6">Data e Hora</h2>
               <p className="text-sm text-surface-300 mb-4">Escolha a data:</p>
-              <div className="flex gap-3 overflow-x-auto pb-4 hide-scrollbar">
+              <div className="grid grid-cols-7 gap-1.5 sm:gap-3 w-full">
                 {dates.map(d => (
                   <button
                     key={d.full}
                     disabled={d.disabled}
-                    onClick={() => setBooking(prev => ({ ...prev, date: d.full, time: '' }))}
-                    className={`flex-shrink-0 w-20 h-24 rounded-lg flex flex-col items-center justify-center border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-dark-bg ${
+                    onClick={() => { setBooking(prev => ({ ...prev, date: d.full, time: '' })); setOpenShift(null); }}
+                    className={`w-full py-2 sm:py-4 rounded-lg flex flex-col items-center justify-center border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-dark-bg ${
                       d.disabled 
                         ? 'opacity-30 cursor-not-allowed border-surface-800 bg-surface-900/50'
                         : booking.date === d.full 
@@ -273,8 +361,8 @@ export default function BookingPage({ onNavigate, user }) {
                           : 'border-surface-700 bg-surface-900 hover:border-primary-500/50 text-surface-100'
                     }`}
                   >
-                    <span className="text-xs uppercase font-medium mb-1">{d.weekday}</span>
-                    <span className="text-2xl font-bold font-display">{d.day}</span>
+                    <span className="text-[10px] sm:text-xs uppercase font-medium mb-0.5 sm:mb-1 truncate w-full text-center">{d.weekday}</span>
+                    <span className="text-lg sm:text-2xl font-bold font-display leading-none">{d.day}</span>
                   </button>
                 ))}
               </div>
@@ -282,22 +370,83 @@ export default function BookingPage({ onNavigate, user }) {
 
             {booking.date && (
               <div>
-                <p className="text-sm text-surface-300 mb-4">Horários disponíveis:</p>
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                  {availableTimes.map(time => (
-                    <button
-                      key={time}
-                      onClick={() => setBooking(prev => ({ ...prev, time }))}
-                      className={`py-3 rounded-md border text-sm font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 focus-visible:ring-offset-dark-bg ${
-                        booking.time === time
-                          ? 'border-primary-500 bg-primary-500 text-surface-950'
-                          : 'border-surface-700 bg-surface-900 hover:border-primary-500/50 text-surface-100'
-                      }`}
-                    >
-                      {time}
-                    </button>
-                  ))}
+                <div className="flex items-center justify-between mb-4 gap-2">
+                  <p className="text-sm text-surface-300">Horários disponíveis:</p>
+                  <span className="text-xs text-surface-300 flex items-center gap-1 bg-surface-900 px-2 py-1 rounded-md border border-surface-800">
+                    <Clock size={12} className="text-primary-500" /> Duração total: {formatDuration(totalDuration)}
+                  </span>
                 </div>
+                {isLoadingTimes ? (
+                  <div className="flex justify-center p-8">
+                    <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {shiftSlots.map(({ shift, slots, freeCount }) => {
+                      const isOpen = openShift === shift.id;
+                      const ShiftIcon = shift.id === 'morning' ? Sun : Sunset;
+                      return (
+                        <div
+                          key={shift.id}
+                          className={`rounded-xl border transition-all duration-300 ${isOpen ? 'border-primary-500/50 bg-primary-900/5 shadow-lg shadow-primary-500/5' : 'border-surface-800 bg-surface-900 hover:border-surface-600'}`}
+                        >
+                          <button
+                            id={`shift-toggle-${shift.id}`}
+                            type="button"
+                            onClick={() => setOpenShift(isOpen ? null : shift.id)}
+                            aria-expanded={isOpen}
+                            className="w-full flex items-center justify-between p-4 text-left rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${isOpen ? 'bg-primary-500 text-surface-950' : 'bg-surface-800 text-primary-500'}`}>
+                                <ShiftIcon size={18} />
+                              </div>
+                              <div>
+                                <p className="font-semibold text-surface-50">{shift.label}</p>
+                                <p className="text-xs text-surface-400">{shift.start} – {shift.end}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${freeCount > 0 ? 'bg-primary-900/20 text-primary-500 border border-primary-500/20' : 'bg-surface-800 text-surface-500 border border-surface-700'}`}>
+                                {freeCount > 0 ? `${freeCount} livres` : 'Lotado'}
+                              </span>
+                              <ChevronDown size={18} className={`text-surface-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+                            </div>
+                          </button>
+
+                          {isOpen && (
+                            <div className="px-4 pb-4 grid grid-cols-4 sm:grid-cols-6 gap-2">
+                              {slots.map(({ time, free }) => (
+                                <button
+                                  key={time}
+                                  id={`slot-${time.replace(':', '')}`}
+                                  disabled={!free}
+                                  onClick={() => setBooking(prev => ({ ...prev, time }))}
+                                  className={`py-2 rounded-md border text-sm font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
+                                    !free
+                                      ? 'opacity-25 cursor-not-allowed border-surface-800 bg-surface-900/50 line-through'
+                                      : booking.time === time
+                                        ? 'border-primary-500 bg-primary-500 text-surface-950 scale-105 shadow-md shadow-primary-500/30'
+                                        : 'border-surface-700 bg-surface-900 hover:border-primary-500/60 hover:-translate-y-0.5 text-surface-100'
+                                  }`}
+                                >
+                                  {time}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {booking.time && (
+                      <div className="flex items-center gap-2 p-3 rounded-lg bg-primary-900/10 border border-primary-500/30 text-sm text-surface-100">
+                        <Check size={16} className="text-primary-500" />
+                        Seu horário: <span className="font-bold text-primary-500">{booking.time} → {addMinutes(booking.time, totalDuration)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -338,7 +487,7 @@ export default function BookingPage({ onNavigate, user }) {
         );
 
       case 5:
-        const selectedBarber = booking.barberId === 'any' ? { name: 'Sem preferência' } : barbers.find(b => b.id === booking.barberId);
+        const selectedBarber = booking.barberId === 'any' ? { name: 'Sem preferência (primeiro disponível)' } : barbers.find(b => b.id === booking.barberId);
         
         return (
           <div className="space-y-6">
@@ -350,8 +499,9 @@ export default function BookingPage({ onNavigate, user }) {
                   <p className="text-sm text-surface-400 mb-1">Data e Hora</p>
                   <p className="font-semibold text-surface-50 flex items-center gap-2">
                     <CalendarIcon size={16} className="text-primary-500" />
-                    {booking.date.split('-').reverse().join('/')} às {booking.time}
+                    {booking.date.split('-').reverse().join('/')} · {booking.time} – {addMinutes(booking.time, totalDuration)}
                   </p>
+                  <p className="text-xs text-surface-400 mt-1">Duração: {formatDuration(totalDuration)}</p>
                 </div>
                 <button onClick={() => setCurrentStep(3)} className="text-sm text-primary-500 hover:underline">Editar</button>
               </div>
@@ -376,8 +526,8 @@ export default function BookingPage({ onNavigate, user }) {
                   <ul className="space-y-2 w-full">
                     {selectedServicesList.map(s => (
                       <li key={s.id} className="flex justify-between text-surface-100">
-                        <span>{s.name}</span>
-                        <span className="font-medium">{s.price}</span>
+                        <span>{s.name} <span className="text-xs text-surface-500">({formatDuration(s.duration_minutes)})</span></span>
+                        <span className="font-medium">{formatPrice(s.price)}</span>
                       </li>
                     ))}
                   </ul>
@@ -407,7 +557,8 @@ export default function BookingPage({ onNavigate, user }) {
             </div>
             <h2 className="text-3xl font-display text-surface-50 font-bold">Agendamento Confirmado!</h2>
             <p className="text-surface-300 max-w-sm mx-auto">
-              Olá {booking.customer.name.split(' ')[0]}, seu horário foi reservado com sucesso. Te enviamos um WhatsApp com os detalhes.
+              Olá {booking.customer.name.split(' ')[0]}, seu horário foi reservado com sucesso
+              {booking.assignedBarberId ? ` com ${barbers.find(b => b.id === booking.assignedBarberId)?.name}` : ''}. Te enviamos um WhatsApp com os detalhes.
             </p>
             
             <div className="pt-8 flex flex-col sm:flex-row gap-4 justify-center">
@@ -466,7 +617,10 @@ export default function BookingPage({ onNavigate, user }) {
           <div className="container mx-auto max-w-2xl flex justify-between items-center gap-4">
             <div className="hidden sm:block">
               {currentStep === 1 && booking.serviceIds.length > 0 && (
-                <span className="text-surface-50 font-bold">Total: R$ {totalPrice.toFixed(2).replace('.', ',')}</span>
+                <span className="text-surface-50 font-bold">
+                  Total: R$ {totalPrice.toFixed(2).replace('.', ',')}
+                  <span className="ml-3 text-sm font-normal text-surface-400">· {formatDuration(totalDuration)}</span>
+                </span>
               )}
             </div>
             <Button 

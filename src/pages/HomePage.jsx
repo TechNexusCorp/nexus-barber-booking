@@ -5,8 +5,9 @@ import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Clock, Scissors, MapPin, Phone, Star, MessageCircle } from 'lucide-react';
-import { services, barbers, gallery, contactInfo } from '../data/mockData';
+import { barbers, gallery, contactInfo } from '../data/mockData';
 import { useFadeIn } from '../hooks/useFadeIn';
+import { useServices, formatPrice, formatDuration } from '../hooks/useServices';
 
 // Animated wrapper component
 const FadeInSection = ({ children, className = '' }) => {
@@ -22,6 +23,7 @@ const FadeInSection = ({ children, className = '' }) => {
 };
 
 function HomePage({ onNavigate, user }) {
+  const { services } = useServices();
   // Override mock data for the generated image
   const displayBarbers = [...barbers];
   displayBarbers[0] = { ...displayBarbers[0], photo: '/barber-1.jpg' };
@@ -71,8 +73,8 @@ function HomePage({ onNavigate, user }) {
                 </div>
                 <div className="mt-auto border-t border-surface-800 pt-4">
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-2xl font-bold text-primary-500">{service.price}</span>
-                    <span className="text-xs text-surface-400 flex items-center gap-1 bg-surface-900 px-2 py-1 rounded-md border border-surface-800"><Clock size={12}/> {service.duration}</span>
+                    <span className="text-2xl font-bold text-primary-500">{formatPrice(service.price)}</span>
+                    <span className="text-xs text-surface-400 flex items-center gap-1 bg-surface-900 px-2 py-1 rounded-md border border-surface-800"><Clock size={12}/> {formatDuration(service.duration_minutes)}</span>
                   </div>
                   <Button variant="outline" className="w-full" onClick={() => onNavigate('booking')}>Agendar</Button>
                 </div>

@@ -1,16 +1,70 @@
 import React, { useState } from 'react';
-import { Menu, X, Scissors, User, LogOut, Calendar } from 'lucide-react';
+import { Menu, X, Scissors, User, LogOut, Calendar, Settings } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Button } from '../ui/Button';
 
 export const Header = ({ onNavigate, user }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [newName, setNewName] = useState(user?.user_metadata?.full_name || '');
+  const [newPhone, setNewPhone] = useState(user?.user_metadata?.phone || '');
+  const [updatingProfile, setUpdatingProfile] = useState(false);
+  const [profileMessage, setProfileMessage] = useState('');
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+  const isAdmin = user?.user_metadata?.is_admin === true;
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     onNavigate('login');
+  };
+
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    setUpdatingProfile(true);
+    setProfileMessage('');
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          full_name: newName,
+          phone: newPhone
+        }
+      });
+      if (error) throw error;
+      setProfileMessage('Perfil atualizado com sucesso!');
+      setTimeout(() => {
+        setIsProfileOpen(false);
+        setProfileMessage('');
+      }, 2000);
+    } catch (error) {
+      setProfileMessage('Erro ao atualizar: ' + error.message);
+    } finally {
+      setUpdatingProfile(false);
+    }
+  };
+
+  const handlePhoneChange = (e) => {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value.length > 11) value = value.slice(0, 11);
+    
+    // Mask: (XX) XXXXX-XXXX
+    if (value.length > 2) {
+      value = `(${value.slice(0,2)}) ${value.slice(2)}`;
+    }
+    if (value.length > 10) {
+      value = `${value.slice(0,10)}-${value.slice(10)}`;
+    }
+    setNewPhone(value);
+  };
+
+  const openProfileModal = () => {
+    setNewName(user?.user_metadata?.full_name || '');
+    let p = user?.user_metadata?.phone || '';
+    p = p.replace(/\D/g, '');
+    if (p.length > 2) p = `(${p.slice(0,2)}) ${p.slice(2)}`;
+    if (p.length > 10) p = `${p.slice(0,10)}-${p.slice(10)}`;
+    setNewPhone(p);
+    setIsProfileOpen(true);
   };
 
   const navLinks = [
@@ -21,7 +75,8 @@ export const Header = ({ onNavigate, user }) => {
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-dark-border bg-dark-bg/80 backdrop-blur-md">
+    <>
+      <header className="sticky top-0 z-50 w-full border-b border-dark-border bg-dark-bg/80 backdrop-blur-md">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl h-20 flex items-center justify-between">
         {/* Logo */}
         <div 
@@ -52,10 +107,23 @@ export const Header = ({ onNavigate, user }) => {
                 <Calendar size={18} />
                 <span>Meus Agendamentos</span>
               </button>
-              <span className="text-sm font-medium text-surface-50 flex items-center gap-2 border-l border-surface-800 pl-4">
+              {isAdmin && (
+                <button 
+                  id="nav-admin-settings"
+                  onClick={() => onNavigate('settings')} 
+                  className="flex items-center gap-2 text-sm font-medium text-surface-300 hover:text-primary-500 transition-colors"
+                >
+                  <Settings size={18} />
+                  <span>Configurações</span>
+                </button>
+              )}
+              <button 
+                onClick={openProfileModal}
+                className="text-sm font-medium text-surface-50 flex items-center gap-2 border-l border-surface-800 pl-4 hover:text-primary-500 transition-colors cursor-pointer"
+              >
                 <User size={18} className="text-primary-500" />
                 {user.user_metadata?.full_name?.split(' ')[0] || user.email}
-              </span>
+              </button>
               <button 
                 onClick={handleSignOut} 
                 className="flex items-center gap-1 text-sm font-medium text-surface-400 hover:text-red-400 transition-colors"
@@ -97,10 +165,16 @@ export const Header = ({ onNavigate, user }) => {
           {user ? (
             <>
               <div className="flex flex-col gap-2 p-2 border-t border-surface-800 mt-2">
-                <div className="flex items-center gap-2 text-base font-medium text-surface-50">
+                <button 
+                  onClick={() => {
+                    openProfileModal();
+                    setIsMenuOpen(false);
+                  }}
+                  className="flex items-center gap-2 text-base font-medium text-surface-50 hover:text-primary-500 transition-colors cursor-pointer text-left py-2"
+                >
                   <User size={20} className="text-primary-500" />
                   <span>Olá, {user.user_metadata?.full_name?.split(' ')[0] || user.email}</span>
-                </div>
+                </button>
                 <button 
                   onClick={() => { onNavigate('appointments'); setIsMenuOpen(false); }}
                   className="flex items-center gap-2 text-base font-medium text-surface-300 hover:text-primary-500 transition-colors text-left py-2"
@@ -108,6 +182,15 @@ export const Header = ({ onNavigate, user }) => {
                   <Calendar size={20} />
                   <span>Meus Agendamentos</span>
                 </button>
+                {isAdmin && (
+                  <button 
+                    onClick={() => { onNavigate('settings'); setIsMenuOpen(false); }}
+                    className="flex items-center gap-2 text-base font-medium text-surface-300 hover:text-primary-500 transition-colors text-left py-2"
+                  >
+                    <Settings size={20} />
+                    <span>Configurações</span>
+                  </button>
+                )}
               </div>
               <button 
                 onClick={() => { handleSignOut(); setIsMenuOpen(false); }}
@@ -130,5 +213,53 @@ export const Header = ({ onNavigate, user }) => {
         </div>
       )}
     </header>
+
+      {/* Profile Modal */}
+      {isProfileOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-dark-card border border-surface-800 rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold text-surface-50">Editar Perfil</h3>
+              <button onClick={() => setIsProfileOpen(false)} className="text-surface-400 hover:text-surface-100">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleUpdateProfile} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-surface-300 mb-1">Nome</label>
+                <input 
+                  type="text" 
+                  value={newName} 
+                  onChange={(e) => setNewName(e.target.value)}
+                  className="w-full bg-surface-900 border border-surface-700 rounded-lg p-2.5 text-surface-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-surface-300 mb-1">Telefone</label>
+                <input 
+                  type="text" 
+                  value={newPhone} 
+                  onChange={handlePhoneChange}
+                  className="w-full bg-surface-900 border border-surface-700 rounded-lg p-2.5 text-surface-50 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition-all"
+                  required
+                />
+              </div>
+
+              {profileMessage && (
+                <div className={`p-3 rounded-lg text-sm text-center ${profileMessage.includes('Erro') ? 'bg-red-950/50 text-red-400 border border-red-900' : 'bg-emerald-950/50 text-emerald-400 border border-emerald-900'}`}>
+                  {profileMessage}
+                </div>
+              )}
+
+              <Button type="submit" variant="primary" className="w-full" disabled={updatingProfile}>
+                {updatingProfile ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 };

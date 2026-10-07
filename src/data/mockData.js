@@ -1,31 +1,44 @@
+// Fallback local — a fonte oficial é a tabela `services` do Supabase (editável no painel do admin)
 export const services = [
   {
     id: 1,
     name: 'Corte Clássico',
     description: 'Corte na tesoura ou máquina com finalização impecável.',
-    duration: '40 min',
-    price: 'R$ 45'
+    duration_minutes: 10,
+    price: 45,
+    combo_of: [],
+    active: true,
+    sort_order: 1
   },
   {
     id: 2,
-    name: 'Barba Terapia',
+    name: 'Barba',
     description: 'Aparação, toalha quente, massagem facial e óleos essenciais.',
-    duration: '30 min',
-    price: 'R$ 35'
+    duration_minutes: 10,
+    price: 35,
+    combo_of: [],
+    active: true,
+    sort_order: 2
   },
   {
     id: 3,
     name: 'Corte + Barba',
     description: 'O combo completo para o seu visual, com desconto especial.',
-    duration: '1h 10min',
-    price: 'R$ 70'
+    duration_minutes: 20,
+    price: 70,
+    combo_of: [1, 2],
+    active: true,
+    sort_order: 3
   },
   {
     id: 4,
     name: 'Sobrancelha',
     description: 'Alinhamento e limpeza na navalha.',
-    duration: '15 min',
-    price: 'R$ 15'
+    duration_minutes: 5,
+    price: 15,
+    combo_of: [],
+    active: true,
+    sort_order: 4
   }
 ];
 
@@ -54,5 +67,5 @@ export const gallery = [
 export const contactInfo = {
   address: 'Rua das Tesouras, 123 - Centro, São Paulo - SP',
   phone: '(11) 99999-9999',
-  hours: 'Terça a Sábado: 09:00 - 20:00\nDomingo e Segunda: Fechado'
+  hours: 'Terça a Sábado: 08:00 - 12:00 / 13:00 - 19:30\nDomingo e Segunda: Fechado'
 };

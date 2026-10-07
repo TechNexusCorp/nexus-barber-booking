@@ -41,7 +41,7 @@ export default function LoginPage({ onNavigate }) {
         });
         if (error) throw error;
         setIsLogin(true);
-        setMessage('Cadastro realizado! Verifique seu email para confirmar.');
+        setMessage('Cadastro realizado! Verifique seu email para confirmar. Procure por um email de "Supabase Auth" (verifique também o spam).');
       }
     } catch (err) {
       setError(err.message || 'Ocorreu um erro.');
