@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from '../components/layout/Header';
 import { Section } from '../components/ui/Section';
 import { Card } from '../components/ui/Card';
@@ -8,7 +8,7 @@ import { Clock, Scissors, MapPin, Phone, Star, MessageCircle } from 'lucide-reac
 import { barbers, gallery, contactInfo } from '../data/mockData';
 import { useFadeIn } from '../hooks/useFadeIn';
 import { useServices, formatPrice, formatDuration } from '../hooks/useServices';
-
+import { supabase } from '../lib/supabase';
 // Animated wrapper component
 const FadeInSection = ({ children, className = '' }) => {
   const { ref, isVisible } = useFadeIn(0.1);
@@ -24,9 +24,31 @@ const FadeInSection = ({ children, className = '' }) => {
 
 function HomePage({ onNavigate, user }) {
   const { services } = useServices();
+  const [recentServices, setRecentServices] = useState([]);
+  
   // Override mock data for the generated image
   const displayBarbers = [...barbers];
   displayBarbers[0] = { ...displayBarbers[0], photo: '/barber-1.jpg' };
+
+  useEffect(() => {
+    if (user?.id && services.length > 0) {
+      const fetchRecent = async () => {
+        const { data, error } = await supabase
+          .from('appointments')
+          .select('service_ids')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(3); // Fetch a few to ensure we get at least 2 distinct services
+        
+        if (data && !error) {
+          const uniqueServiceIds = [...new Set(data.flatMap(a => a.service_ids))].slice(0, 2);
+          const recent = uniqueServiceIds.map(id => services.find(s => s.id === id)).filter(Boolean);
+          setRecentServices(recent);
+        }
+      };
+      fetchRecent();
+    }
+  }, [user, services]);
 
   return (
     <div className="min-h-screen flex flex-col font-sans bg-dark-bg text-surface-100 scroll-smooth">
@@ -61,6 +83,29 @@ function HomePage({ onNavigate, user }) {
             </FadeInSection>
           </div>
         </section>
+
+        {/* 1.5 Agendado Recentemente */}
+        {recentServices.length > 0 && (
+          <Section title="Agendado Recentemente" subtitle="Seus Favoritos" className="bg-surface-950 pb-0">
+            <FadeInSection className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+              {recentServices.map((service) => (
+                <Card key={service.id} className="flex flex-col h-full hover:border-primary-500/50 transition-colors group">
+                  <div className="flex-1">
+                    <h3 className="text-xl font-display text-surface-50 mb-2 group-hover:text-primary-400 transition-colors">{service.name}</h3>
+                    <p className="text-surface-400 text-sm mb-6">{service.description}</p>
+                  </div>
+                  <div className="mt-auto border-t border-surface-800 pt-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-2xl font-bold text-primary-500">{formatPrice(service.price)}</span>
+                      <span className="text-xs text-surface-400 flex items-center gap-1 bg-surface-900 px-2 py-1 rounded-md border border-surface-800"><Clock size={12}/> {formatDuration(service.duration_minutes)}</span>
+                    </div>
+                    <Button variant="outline" className="w-full" onClick={() => onNavigate('booking')}>Agendar Novamente</Button>
+                  </div>
+                </Card>
+              ))}
+            </FadeInSection>
+          </Section>
+        )}
 
         {/* 2. Serviços */}
         <Section title="Nossos Serviços" subtitle="O que oferecemos" id="servicos">

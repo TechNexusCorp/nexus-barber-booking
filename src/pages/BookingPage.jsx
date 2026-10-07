@@ -185,14 +185,15 @@ export default function BookingPage({ onNavigate, user }) {
         next = prev.serviceIds.filter(sId => sId !== id);
       } else {
         const clicked = services.find(s => s.id === id);
-        const parts = clicked?.combo_of || [];
+        const clickedBase = clicked?.combo_of?.length ? clicked.combo_of : [id];
+        
         next = prev.serviceIds.filter(sId => {
-          // Marcou um combo -> desmarca os avulsos que ele já inclui
-          if (parts.includes(sId)) return false;
-          // Marcou um avulso -> desmarca combos que já incluem ele
           const other = services.find(s => s.id === sId);
-          if (other?.combo_of?.includes(id)) return false;
-          return true;
+          const otherBase = other?.combo_of?.length ? other.combo_of : [sId];
+          
+          // Se houver qualquer interseção nos serviços base, desmarca o antigo para evitar duplicidade
+          const hasConflict = otherBase.some(baseId => clickedBase.includes(baseId));
+          return !hasConflict;
         });
         next.push(id);
 
@@ -229,16 +230,22 @@ export default function BookingPage({ onNavigate, user }) {
   const totalPrice = selectedServicesList.reduce((acc, curr) => acc + curr.price, 0);
   const totalDuration = selectedServicesList.reduce((acc, curr) => acc + curr.duration_minutes, 0);
 
+  const minServiceDuration = useMemo(() => {
+    if (!services || services.length === 0) return 10;
+    const minDur = Math.min(...services.map(s => s.duration_minutes));
+    return isFinite(minDur) && minDur > 0 ? minDur : 10;
+  }, [services]);
+
   // Horários por turno: um horário está livre se o intervalo inteiro [início, início + duração) não sobrepõe nada
   const shiftSlots = useMemo(() => SHIFTS.map(shift => {
-    const slots = generateShiftSlots(shift, totalDuration || 5).map(time => {
+    const slots = generateShiftSlots(shift, totalDuration || 5, minServiceDuration).map(time => {
       const free = booking.barberId === 'any'
         ? !!findFreeBarber(barbers, time, totalDuration, busySlots)
         : isBarberFree(booking.barberId, time, totalDuration, busySlots);
       return { time, free };
     });
     return { shift, slots, freeCount: slots.filter(s => s.free).length };
-  }), [totalDuration, booking.barberId, busySlots]);
+  }), [totalDuration, booking.barberId, busySlots, minServiceDuration]);
 
   const renderStepContent = () => {
     switch (currentStep) {

@@ -24,15 +24,15 @@ export const addMinutes = (hhmm, minutes) => toHHMM(toMinutes(hhmm) + minutes);
 export const overlaps = (startA, endA, startB, endB) => startA < endB && endA > startB;
 
 /**
- * Gera os horários de início de um turno, de 5 em 5 min.
+ * Gera os horários de início de um turno, de acordo com o stepMinutes fornecido.
  * Um horário só existe se o serviço inteiro TERMINAR dentro do turno
  * (assim o almoço 12:00–13:00 nunca é invadido).
  */
-export const generateShiftSlots = (shift, durationMinutes) => {
+export const generateShiftSlots = (shift, durationMinutes, stepMinutes = 10) => {
   const start = toMinutes(shift.start);
   const end = toMinutes(shift.end);
   const slots = [];
-  for (let t = start; t + durationMinutes <= end; t += SLOT_STEP_MINUTES) {
+  for (let t = start; t + durationMinutes <= end; t += stepMinutes) {
     slots.push(toHHMM(t));
   }
   return slots;
