@@ -45,27 +45,28 @@ export const services = [
 export const barbers = [
   {
     id: 1,
-    name: 'Marcos Silva',
+    name: 'Krech',
     specialty: 'Especialista em Degradê',
-    photo: 'https://images.unsplash.com/photo-1618306859344-93452fc3a863?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'
+    photo: '/barbeiro-krech.jpeg'
   },
   {
     id: 2,
-    name: 'Diego Souza',
+    name: 'Vitinho',
     specialty: 'Mestre das Tesouras',
-    photo: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'
+    photo: '/barbeiro-vitinho.jpeg'
+  },
+  {
+    id: 3,
+    name: 'Mikael',
+    specialty: 'Especialista em Barba',
+    photo: '/barbeiro-mikael.jpeg'
   }
 ];
-
-export const gallery = [
-  'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-  'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-  'https://images.unsplash.com/photo-1593702288056-ccbfb4f971b3?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80',
-  'https://images.unsplash.com/photo-1621605815971-fbc98d665033?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'
-];
+const galleryModules = import.meta.glob('../assets/gallery/*.{png,jpg,jpeg,webp,gif,svg}', { eager: true, import: 'default' });
+export const gallery = Object.values(galleryModules);
 
 export const contactInfo = {
-  address: 'Rua das Tesouras, 123 - Centro, São Paulo - SP',
-  phone: '(11) 99999-9999',
+  address: 'Rua Cel. Vitor Vila Verde, 491 - Santo Antônio da Patrulha, RS',
+  phone: '(51) 98062-8005',
   hours: 'Terça a Sábado: 08:00 - 12:00 / 13:00 - 19:30\nDomingo e Segunda: Fechado'
 };

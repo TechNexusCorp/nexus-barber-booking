@@ -69,10 +69,24 @@ export const Header = ({ onNavigate, user }) => {
 
   const navLinks = [
     { name: 'Início', target: 'home' },
-    { name: 'Serviços', target: 'home' },
-    { name: 'Barbeiros', target: 'home' },
-    { name: 'Contato', target: 'home' },
+    { name: 'Serviços', target: 'home', id: 'servicos' },
+    { name: 'Barbeiros', target: 'home', id: 'barbeiros' },
+    { name: 'Contato', target: 'home', id: 'contato' },
   ];
+
+  const handleNavClick = (link) => {
+    onNavigate(link.target);
+    setTimeout(() => {
+      if (link.id) {
+        const element = document.getElementById(link.id);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' });
+        }
+      } else if (link.name === 'Início') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }, 100);
+  };
 
   return (
     <>
@@ -81,7 +95,7 @@ export const Header = ({ onNavigate, user }) => {
         {/* Logo */}
         <div 
           className="flex items-center gap-2 text-primary-500 cursor-pointer"
-          onClick={() => onNavigate('home')}
+          onClick={() => { onNavigate('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
         >
           <Scissors className="h-8 w-8" />
           <span className="text-xl font-bold tracking-tight text-surface-50 font-display">FIO A FIO</span>
@@ -92,7 +106,7 @@ export const Header = ({ onNavigate, user }) => {
           {navLinks.map((link) => (
             <button 
               key={link.name} 
-              onClick={() => onNavigate(link.target)} 
+              onClick={() => handleNavClick(link)} 
               className="text-sm font-medium text-surface-300 hover:text-primary-500 transition-colors"
             >
               {link.name}
@@ -156,7 +170,7 @@ export const Header = ({ onNavigate, user }) => {
           {navLinks.map((link) => (
             <button 
               key={link.name} 
-              onClick={() => { onNavigate(link.target); setIsMenuOpen(false); }}
+              onClick={() => { handleNavClick(link); setIsMenuOpen(false); }}
               className="text-base font-medium text-surface-200 hover:text-primary-500 p-2 rounded-md hover:bg-surface-800 transition-colors text-left"
             >
               {link.name}

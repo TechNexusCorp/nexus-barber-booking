@@ -25,10 +25,24 @@ const FadeInSection = ({ children, className = '' }) => {
 function HomePage({ onNavigate, user }) {
   const { services } = useServices();
   const [recentServices, setRecentServices] = useState([]);
+  const [dbBarbers, setDbBarbers] = useState([]);
+  const [dbGallery, setDbGallery] = useState([]);
   
   // Override mock data for the generated image
-  const displayBarbers = [...barbers];
-  displayBarbers[0] = { ...displayBarbers[0], photo: '/barber-1.jpg' };
+  const displayBarbers = dbBarbers.length > 0 ? dbBarbers : [...barbers];
+  const displayGallery = dbGallery.length > 0 ? dbGallery.map(g => g.image_url) : gallery;
+
+  useEffect(() => {
+    const fetchMedia = async () => {
+      const [barbersRes, galleryRes] = await Promise.all([
+        supabase.from('barbers').select('*').order('id'),
+        supabase.from('gallery').select('*').order('created_at', { ascending: false })
+      ]);
+      if (barbersRes.data) setDbBarbers(barbersRes.data);
+      if (galleryRes.data) setDbGallery(galleryRes.data);
+    };
+    fetchMedia();
+  }, []);
 
   useEffect(() => {
     if (user?.id && services.length > 0) {
@@ -133,12 +147,16 @@ function HomePage({ onNavigate, user }) {
           <FadeInSection className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 justify-center">
             {displayBarbers.map((barber) => (
               <Card key={barber.id} className="p-0 overflow-hidden border-none bg-surface-900 group">
-                <div className="h-80 w-full overflow-hidden">
-                  <img 
-                    src={barber.photo} 
-                    alt={barber.name} 
-                    className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500 grayscale group-hover:grayscale-0"
-                  />
+                <div className="h-80 w-full overflow-hidden bg-surface-950 flex items-center justify-center">
+                  {barber.photo_url || barber.photo ? (
+                    <img 
+                      src={barber.photo_url || barber.photo} 
+                      alt={barber.name} 
+                      className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500 grayscale group-hover:grayscale-0"
+                    />
+                  ) : (
+                    <span className="text-surface-600">Sem foto</span>
+                  )}
                 </div>
                 <div className="p-6 text-center">
                   <h3 className="text-xl font-display text-surface-50 mb-1">{barber.name}</h3>
@@ -152,8 +170,8 @@ function HomePage({ onNavigate, user }) {
         {/* 4. Galeria */}
         <Section title="Nossa Arte" subtitle="Galeria">
           <FadeInSection className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {gallery.map((img, idx) => (
-              <div key={idx} className="aspect-square overflow-hidden rounded-lg group">
+            {displayGallery.map((img, idx) => (
+              <div key={idx} className="aspect-square overflow-hidden rounded-lg group bg-surface-900 border border-surface-800">
                 <img 
                   src={img} 
                   alt={`Trabalho ${idx + 1}`} 
@@ -194,7 +212,11 @@ function HomePage({ onNavigate, user }) {
                 </div>
               </div>
 
-              <Button variant="primary" className="w-full sm:w-auto flex items-center gap-2">
+              <Button 
+                variant="primary" 
+                className="w-full sm:w-auto flex items-center gap-2"
+                onClick={() => window.open('https://wa.me/5551980628005', '_blank')}
+              >
                 <MessageCircle size={18} />
                 Chamar no WhatsApp
               </Button>
@@ -205,9 +227,15 @@ function HomePage({ onNavigate, user }) {
               <div className="absolute inset-0 opacity-20 bg-[url('https://images.unsplash.com/photo-1524661135-423995f22d0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80')] bg-cover bg-center" />
               <div className="z-10 text-center p-6">
                 <MapPin className="h-12 w-12 text-primary-500 mx-auto mb-4" />
-                <h3 className="text-xl font-display text-surface-50 mb-2">Mapa Interativo</h3>
-                <p className="text-surface-400 text-sm mb-4">Integração com Google Maps entrará aqui.</p>
-                <Button variant="outline" size="sm">Ver no Google Maps</Button>
+                <h3 className="text-xl font-display text-surface-50 mb-2">Nossa Localização</h3>
+                <p className="text-surface-400 text-sm mb-4">Rua Cel. Vitor Vila Verde, 491</p>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => window.open('https://www.google.com/maps/search/?api=1&query=Rua+coronel+Vitor+vila+verde+491,+Santo+Antonio+da+Patrulha,+RS', '_blank')}
+                >
+                  Ver no Google Maps
+                </Button>
               </div>
             </div>
           </FadeInSection>
@@ -225,7 +253,7 @@ function HomePage({ onNavigate, user }) {
             A verdadeira barbearia clássica, com o toque de modernidade e excelência que você merece.
           </p>
           <div className="flex items-center justify-center gap-4 mb-8">
-            <a href="#" className="w-10 h-10 rounded-full bg-surface-900 flex items-center justify-center text-surface-400 hover:text-primary-500 hover:bg-surface-800 transition-colors">
+            <a href="https://www.instagram.com/krech_barbearia/" target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-full bg-surface-900 flex items-center justify-center text-surface-400 hover:text-primary-500 hover:bg-surface-800 transition-colors">
               Ig
             </a>
             <a href="#" className="w-10 h-10 rounded-full bg-surface-900 flex items-center justify-center text-surface-400 hover:text-primary-500 hover:bg-surface-800 transition-colors">
